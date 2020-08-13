@@ -141,6 +141,9 @@ object ChainCodeConverter {
                     }
                 }
                 "shake" -> {
+                    if (args.size == 0) {
+                        return PokeMessage.Poke
+                    }
                     PokeMessage.values.forEach {
                         if (it.type == args["type"]!!.toInt() && it.id == args["id"]!!.toInt()) {
                             return it
