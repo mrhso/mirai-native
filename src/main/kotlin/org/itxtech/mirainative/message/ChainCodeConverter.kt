@@ -141,15 +141,12 @@ object ChainCodeConverter {
                     }
                 }
                 "shake" -> {
-                    return PokeMessage.Poke
-                }
-                "poke" -> {
                     PokeMessage.values.forEach {
                         if (it.type == args["type"]!!.toInt() && it.id == args["id"]!!.toInt()) {
                             return it
                         }
                     }
-                    return MSG_EMPTY
+                    return PokeMessage.Poke
                 }
                 "xml" -> {
                     return XmlMessage(args["data"]!!)
@@ -175,9 +172,19 @@ object ChainCodeConverter {
                 is Face -> "[CQ:face,id=${it.id}]"
                 is VipFace -> "[CQ:vipface,id=${it.kind.id},name=${it.kind.name},count=${it.count}]"
                 is Image -> "[CQ:image,file=${it.imageId}.mnimg]" // Real file not supported
-                is RichMessage -> "[CQ:rich,data=${it.content.escape(true)}]"
-                is Voice -> "[CQ:voice,url=${it.url},md5=${it.md5},file=${it.fileName}]"
-                is PokeMessage -> "[CQ:poke,id=${it.id},type=${it.type},name=${it.name}]"
+                is RichMessage -> {
+                    if (it is LightApp && Regex("\"app\":\"com\\.tencent\\.map\"").containsMatchIn(it.content)) {
+                        var lat = it.content.replace(Regex(".*\"lat\":\"(.*?)\".*"), "$1")
+                        var lng = it.content.replace(Regex(".*\"lng\":\"(.*?)\".*"), "$1")
+                        var name = it.content.replace(Regex(".*\"name\":\"(.*?)\".*"), "$1")
+                        var address = it.content.replace(Regex(".*\"address\":\"(.*?)\".*"), "$1")
+                        "[CQ:location,lat=${lat.escape(true)},lon=${lng.escape(true)},title=${name.escape(true)},content=${address.escape(true)}]"
+                    } else {
+                        "[CQ:rich,data=${it.content.escape(true)}]"
+                    }
+                }
+                is Voice -> "[CQ:record,url=${it.url},md5=${it.md5},file=${it.fileName}]"
+                is PokeMessage -> "[CQ:shake,id=${it.id},type=${it.type},name=${it.name}]"
                 is FlashImage -> "[CQ:image,file=${it.image.imageId}.mning,type=flash]"
                 else -> ""//error("不支持的消息类型：${it::class.simpleName}")
             }
