@@ -28,6 +28,7 @@ import kotlinx.coroutines.*
 import net.mamoe.mirai.Bot
 import net.mamoe.mirai.console.plugins.PluginBase
 import net.mamoe.mirai.console.plugins.PluginManager.getPluginDescription
+import org.itxtech.mirainative.bridge.NativeBridge
 import org.itxtech.mirainative.manager.CacheManager
 import org.itxtech.mirainative.manager.EventManager
 import org.itxtech.mirainative.manager.LibraryManager
@@ -133,6 +134,9 @@ object MiraiNative : PluginBase() {
 
     override fun onEnable() {
         checkNativeLibs()
+
+        NativeBridge.init()
+
         PluginManager.loadPlugins()
 
         nativeLaunch {

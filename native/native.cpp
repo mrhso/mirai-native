@@ -26,21 +26,24 @@ struct native_plugin
 // Global var
 
 vector<native_plugin> plugins;
+int code_page = 54936;
 
 // Helper
 const char* JstringToGb(JNIEnv* env, jstring jstr)
 {
 	int length = env->GetStringLength(jstr);
 	auto jcstr = env->GetStringChars(jstr, 0);
-	auto rtn = static_cast<char*>(malloc(length * 2 + 1));
-	auto size = WideCharToMultiByte(GB18030, 0, LPCWSTR(jcstr), length, rtn,
-	                                length * 2 + 1, nullptr, nullptr);
+	auto size = WideCharToMultiByte(code_page, 0UL, LPCWSTR(jcstr), length,
+	                                nullptr, 0, nullptr, nullptr);
+	auto* rtn = new char[size + 1];
+	size = WideCharToMultiByte(code_page, 0UL, LPCWSTR(jcstr), length, rtn,
+	                           size, nullptr, nullptr);
 	if (size <= 0)
 	{
 		return "";
 	}
 	env->ReleaseStringChars(jstr, jcstr);
-	rtn[size] = 0;
+	rtn[size] = '\0';
 	return rtn;
 }
 
@@ -65,17 +68,13 @@ jstring GbToJstring(JNIEnv* env, const char* str)
 		return env->NewStringUTF(str);
 	}
 	jstring rtn = nullptr;
-	unsigned short* buffer = 0;
-	const auto length = MultiByteToWideChar(GB18030, 0, LPCSTR(str), slen, nullptr, 0);
-	buffer = static_cast<unsigned short*>(malloc(length * 2 + 1));
-	if (MultiByteToWideChar(GB18030, 0, LPCSTR(str), slen, LPWSTR(buffer), length) > 0)
+	const auto length = MultiByteToWideChar(code_page, 0UL, LPCSTR(str), slen, nullptr, 0);
+	auto buffer = new jchar[length];
+	if (MultiByteToWideChar(code_page, 0UL, LPCSTR(str), slen, LPWSTR(buffer), length) > 0)
 	{
-		rtn = env->NewString(static_cast<jchar*>(buffer), length);
+		rtn = env->NewString(buffer, length);
 	}
-	if (buffer)
-	{
-		free(buffer);
-	}
+	delete[] buffer;
 	return rtn;
 }
 
@@ -140,6 +139,14 @@ void detach_java()
 	jvm->DetachCurrentThread();
 }
 
+// Initialization
+
+JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_config(JNIEnv* env, jclass clz, jint page)
+{
+	code_page = page;
+	return 0;
+}
+
 // Plugin
 
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_loadNativePlugin(
@@ -168,7 +175,7 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_freeNativePlugin(
 	JNIEnv* env, jclass clz, jint id)
 {
 	auto r = FreeLibrary(plugins[id].dll);
-	delete[] plugins[id].file;
+	//free((void*) plugins[id].file);
 	if (r != FALSE)
 	{
 		return 0;
@@ -217,7 +224,10 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvPrivateMessage(
 	const auto m = EvPriMsg(GetMethod(env, id, method));
 	if (m)
 	{
-		return m(type, msg_id, acct, JstringToGb(env, msg), font);
+		auto str1 = JstringToGb(env, msg);
+		auto result = m(type, msg_id, acct, str1, font);
+		//free((void*)str1);
+		return result;
 	}
 	return 0;
 }
@@ -229,7 +239,12 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvGroupMessage(
 	const auto m = EvGroupMsg(GetMethod(env, id, method));
 	if (m)
 	{
-		return m(type, msg_id, grp, acct, JstringToGb(env, anon), JstringToGb(env, msg), font);
+		auto str1 = JstringToGb(env, anon);
+		auto str2 = JstringToGb(env, msg);
+		auto result = m(type, msg_id, grp, acct, str1, str2, font);
+		//free((void*)str1);
+		//free((void*)str2);
+		return result;
 	}
 	return 0;
 }
@@ -275,7 +290,12 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvRequestAddGroup(
 	const auto m = EvRequestAddGroup(GetMethod(env, id, method));
 	if (m)
 	{
-		return m(type, time, grp, acct, JstringToGb(env, msg), JstringToChars(env, flag));
+		auto str1 = JstringToGb(env, msg);
+		auto str2 = JstringToChars(env, flag);
+		auto result = m(type, time, grp, acct, str1, str2);
+		//free((void*)str1);
+		//free((void*)str2);
+		return result;
 	}
 	return 0;
 }
@@ -287,7 +307,12 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvRequestAddFriend(
 	const auto m = EvRequestAddFriend(GetMethod(env, id, method));
 	if (m)
 	{
-		return m(type, time, acct, JstringToGb(env, msg), JstringToChars(env, flag));
+		auto str1 = JstringToGb(env, msg);
+		auto str2 = JstringToChars(env, flag);
+		auto result = m(type, time, acct, str1, str2);
+		//free((void*)str1);
+		//free((void*)str2);
+		return result;
 	}
 	return 0;
 }

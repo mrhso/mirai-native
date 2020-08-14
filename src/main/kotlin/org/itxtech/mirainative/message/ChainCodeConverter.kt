@@ -56,7 +56,7 @@ object ChainCodeConverter {
     private fun String.toMap() = HashMap<String, String>().apply {
         this@toMap.split(",").forEach {
             val parts = it.split(delimiters = *arrayOf("="), limit = 2)
-            this[parts[0]] = parts[1].unescape(true)
+            this[parts[0].trim()] = parts[1].unescape(true).trim()
         }
     }
 
@@ -157,6 +157,12 @@ object ChainCodeConverter {
                 "json" -> {
                     return JsonMessage(args["data"]!!)
                 }
+                "app" -> {
+                    return LightApp(args["data"]!!)
+                }
+                "rich" -> {
+                    return ServiceMessage(args["id"]!!.toInt(), args["data"]!!)
+                }
                 else -> {
                     MiraiNative.logger.debug("不支持的 CQ码：${parts[0]}")
                 }
@@ -176,14 +182,25 @@ object ChainCodeConverter {
                 is VipFace -> "[CQ:vipface,id=${it.kind.id},name=${it.kind.name},count=${it.count}]"
                 is Image -> "[CQ:image,file=${it.imageId}.mnimg]" // Real file not supported
                 is RichMessage -> {
-                    if (it is LightApp && Regex("\"app\":\"com\\.tencent\\.map\"").containsMatchIn(it.content)) {
-                        var lat = it.content.replace(Regex(".*\"lat\":\"(.*?)\".*"), "$1")
-                        var lng = it.content.replace(Regex(".*\"lng\":\"(.*?)\".*"), "$1")
-                        var name = it.content.replace(Regex(".*\"name\":\"(.*?)\".*"), "$1")
-                        var address = it.content.replace(Regex(".*\"address\":\"(.*?)\".*"), "$1")
-                        "[CQ:location,lat=${lat.escape(true)},lon=${lng.escape(true)},title=${name.escape(true)},content=${address.escape(true)}]"
-                    } else {
-                        "[CQ:rich,data=${it.content.escape(true)}]"
+                    val content = it.content.escape(true)
+                    return@joinToString when (it) {
+                        is LightApp -> {
+                            if (Regex("\"app\":\"com\\.tencent\\.map\"").containsMatchIn(it.content)) {
+                                var lat = it.content.replace(Regex(".*\"lat\":\"(.*?)\".*"), "$1")
+                                var lng = it.content.replace(Regex(".*\"lng\":\"(.*?)\".*"), "$1")
+                                var name = it.content.replace(Regex(".*\"name\":\"(.*?)\".*"), "$1")
+                                var address = it.content.replace(Regex(".*\"address\":\"(.*?)\".*"), "$1")
+                                "[CQ:location,lat=${lat.escape(true)},lon=${lng.escape(true)},title=${name.escape(true)},content=${address.escape(true)}]"
+                            } else {
+                                "[CQ:app,data=$content]"
+                            }
+                        }
+                        is ServiceMessage -> when (it.serviceId) {
+                            60 -> "[CQ:xml,data=$content]"
+                            1 -> "[CQ:json,data=$content]"
+                            else -> "[CQ:rich,data=${content},id=${it.serviceId}]"
+                        }
+                        else -> "[CQ:rich,data=$content]" // Which is impossible
                     }
                 }
                 is Voice -> "[CQ:record,url=${it.url},md5=${it.md5},file=${it.fileName}]"
