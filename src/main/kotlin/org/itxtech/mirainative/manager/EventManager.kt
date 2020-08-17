@@ -36,6 +36,7 @@ import org.itxtech.mirainative.Bridge
 import org.itxtech.mirainative.MiraiNative
 import org.itxtech.mirainative.bridge.NativeBridge
 import org.itxtech.mirainative.message.ChainCodeConverter
+import org.itxtech.mirainative.message.ChainCodeConverter.escape
 
 object EventManager {
     fun registerEvents() {
@@ -112,7 +113,11 @@ object EventManager {
                 nativeLaunch {
                     NativeBridge.eventRequestAddGroup(
                         Bridge.REQUEST_GROUP_APPLY,
-                        getTimestamp(), groupId, fromId, message, CacheManager.cacheEvent(ev)
+                        getTimestamp(),
+                        groupId,
+                        fromId,
+                        message.escape(false),
+                        CacheManager.cacheEvent(ev)
                     )
                 }
             }
@@ -146,7 +151,13 @@ object EventManager {
             //加好友事件
             subscribeAlways<NewFriendRequestEvent> { ev ->
                 nativeLaunch {
-                    NativeBridge.eventRequestAddFriend(1, getTimestamp(), fromId, message, CacheManager.cacheEvent(ev))
+                    NativeBridge.eventRequestAddFriend(
+                            1,
+                            getTimestamp(),
+                            fromId,
+                            message.escape(false),
+                            CacheManager.cacheEvent(ev)
+                    )
                 }
             }
             subscribeAlways<FriendAddEvent> {
