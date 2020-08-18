@@ -26,14 +26,15 @@
  - 发送本地图片支持绝对和相对路径，相对路径支持java.exe目录下`data\image`和运行目录下`data\image`，例：`[CQ:image,file=2.png]`
  - 发送URL图片使用扩展CQ码，例：`[CQ:image,url=https://xxxx/xxxx.jpg]`
  - 支持发送和接收闪照，额外参数 `type=flash`
- - 支持接收语音 `[CQ:voice,url=语音链接,md5=文件MD5,file=文件名]`
+ - 支持接收语音 `[CQ:record,url=语音链接,md5=文件MD5,file=文件名]`
  - 发送抖一抖 `[CQ:shake]`
- - 发送各类戳一戳 `[CQ:poke,id=xxx,type=xxx]`，ID和Type见 `mirai` 的 `HummerMessage.kt`，必须在该文件中定义的id和type才能发送
+ - 发送各类戳一戳 `[CQ:shake,id=xxx,type=xxx]`，ID和Type见 `mirai` 的 `HummerMessage.kt`，必须在该文件中定义的id和type才能发送
  - 接收`VipFace` `[CQ:vipface,id=xxx,name=xxx,count=xxx]`
  - 发送 `XML` 消息 `[CQ:xml,data=xxxx]`
  - 发送 `JSON` 消息 `[CQ:json,data=xxxx]`，少部分 JSON 消息为此类型
  - 发送 `LightApp` 消息 `[CQ:app,data=xxxx]`，大部分 JSON 消息为此类型
  - 接收未知类型 `Rich` 消息 `[CQ:rich,data=xxxx,id=xx]`
+ - `[CQ:location,lat=xxx,lon=xxx,title=xxx,content=xxx,id=xxx]`
 
 ## 酷Q API
 

@@ -163,6 +163,9 @@ object ChainCodeConverter {
                 "rich" -> {
                     return ServiceMessage(args["id"]!!.toInt(), args["data"]!!)
                 }
+                "location" -> {
+                    return LightApp("{\"app\":\"com.tencent.map\",\"desc\":\"地图\",\"view\":\"LocationShare\",\"ver\":\"0.0.0.1\",\"prompt\":\"[应用]地图\",\"meta\":{\"Location.Search\":{\"id\":\"${args["id"]?:""}\",\"name\":\"${args["title"]?:""}\",\"address\":\"${args["content"]?:""}\",\"lat\":\"${args["lat"]!!}\",\"lng\":\"${args["lon"]!!}\",\"from\":\"plusPanel\"}},\"config\":{\"forward\":1,\"autosize\":1,\"type\":\"card\"}}")
+                }
                 else -> {
                     MiraiNative.logger.debug("不支持的 CQ码：${parts[0]}")
                 }
@@ -190,7 +193,8 @@ object ChainCodeConverter {
                                 var lng = it.content.replace(Regex(".*\"lng\":\"(.*?)\".*"), "$1")
                                 var name = it.content.replace(Regex(".*\"name\":\"(.*?)\".*"), "$1")
                                 var address = it.content.replace(Regex(".*\"address\":\"(.*?)\".*"), "$1")
-                                "[CQ:location,lat=${lat.escape(true)},lon=${lng.escape(true)},title=${name.escape(true)},content=${address.escape(true)}]"
+                                var id = it.content.replace(Regex(".*\"id\":\"(.*?)\".*"), "$1")
+                                "[CQ:location,lat=${lat.escape(true)},lon=${lng.escape(true)},title=${name.escape(true)},content=${address.escape(true)},id=${id.escape(true)}]"
                             } else {
                                 "[CQ:app,data=$content]"
                             }
