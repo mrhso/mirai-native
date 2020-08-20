@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.itxtech"
-version = "1.8.6"
+version = "1.9.0-rc.1"
 
 kotlin {
     sourceSets {
@@ -24,8 +24,8 @@ repositories {
 dependencies {
     api("org.jetbrains.kotlinx:atomicfu:0.14.4")
 
-    implementation("net.mamoe:mirai-core:1.2.0")
-    implementation("net.mamoe:mirai-console:0.5.2")
+    implementation("net.mamoe:mirai-core:1.2.1")
+    implementation("net.mamoe:mirai-console:1.0-M2")
 }
 
 tasks.named<Jar>("jar") {
