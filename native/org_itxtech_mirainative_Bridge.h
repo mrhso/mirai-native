@@ -37,27 +37,19 @@ extern "C" {
 #define org_itxtech_mirainative_Bridge_GROUP_MUTE 2L
 /*
  * Class:     org_itxtech_mirainative_Bridge
- * Method:    config
- * Signature: (I)I
- */
-JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_config
-  (JNIEnv *, jclass, jint);
-
-/*
- * Class:     org_itxtech_mirainative_Bridge
  * Method:    shutdown
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_shutdown
-(JNIEnv*, jclass);
+  (JNIEnv *, jclass);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    loadNativePlugin
- * Signature: (Ljava/lang/String;I)I
+ * Signature: ([BI)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_loadNativePlugin
-  (JNIEnv *, jclass, jstring, jint);
+  (JNIEnv *, jclass, jbyteArray, jint);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
@@ -70,82 +62,82 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_freeNativePlugin
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvPrivateMessage
- * Signature: (ILjava/lang/String;IIJLjava/lang/String;I)I
+ * Signature: (I[BIIJ[BI)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvPrivateMessage
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong, jstring, jint);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong, jbyteArray, jint);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvGroupMessage
- * Signature: (ILjava/lang/String;IIJJLjava/lang/String;Ljava/lang/String;I)I
+ * Signature: (I[BIIJJ[B[BI)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvGroupMessage
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong, jlong, jstring, jstring, jint);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong, jlong, jbyteArray, jbyteArray, jint);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvGroupAdmin
- * Signature: (ILjava/lang/String;IIJJ)I
+ * Signature: (I[BIIJJ)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvGroupAdmin
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong, jlong);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong, jlong);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvGroupMember
- * Signature: (ILjava/lang/String;IIJJJ)I
+ * Signature: (I[BIIJJJ)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvGroupMember
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong, jlong, jlong);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong, jlong, jlong);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvGroupBan
- * Signature: (ILjava/lang/String;IIJJJJ)I
+ * Signature: (I[BIIJJJJ)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvGroupBan
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong, jlong, jlong, jlong);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong, jlong, jlong, jlong);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvRequestAddGroup
- * Signature: (ILjava/lang/String;IIJJLjava/lang/String;Ljava/lang/String;)I
+ * Signature: (I[BIIJJ[B[B)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvRequestAddGroup
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong, jlong, jstring, jstring);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong, jlong, jbyteArray, jbyteArray);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvRequestAddFriend
- * Signature: (ILjava/lang/String;IIJLjava/lang/String;Ljava/lang/String;)I
+ * Signature: (I[BIIJ[B[B)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvRequestAddFriend
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong, jstring, jstring);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong, jbyteArray, jbyteArray);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    pEvFriendAdd
- * Signature: (ILjava/lang/String;IIJ)I
+ * Signature: (I[BIIJ)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvFriendAdd
-  (JNIEnv *, jclass, jint, jstring, jint, jint, jlong);
+  (JNIEnv *, jclass, jint, jbyteArray, jint, jint, jlong);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    callIntMethod
- * Signature: (ILjava/lang/String;)I
+ * Signature: (I[B)I
  */
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_callIntMethod
-  (JNIEnv *, jclass, jint, jstring);
+  (JNIEnv *, jclass, jint, jbyteArray);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge
  * Method:    callStringMethod
- * Signature: (ILjava/lang/String;)Ljava/lang/String;
+ * Signature: (I[B)[B
  */
-JNIEXPORT jstring JNICALL Java_org_itxtech_mirainative_Bridge_callStringMethod
-  (JNIEnv *, jclass, jint, jstring);
+JNIEXPORT jbyteArray JNICALL Java_org_itxtech_mirainative_Bridge_callStringMethod
+  (JNIEnv *, jclass, jint, jbyteArray);
 
 /*
  * Class:     org_itxtech_mirainative_Bridge

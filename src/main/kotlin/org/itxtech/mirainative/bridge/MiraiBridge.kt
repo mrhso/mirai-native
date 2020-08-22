@@ -47,12 +47,14 @@ import net.mamoe.mirai.message.data.queryUrl
 import net.mamoe.mirai.message.data.quote
 import org.itxtech.mirainative.Bridge
 import org.itxtech.mirainative.MiraiNative
+import org.itxtech.mirainative.fromNative
 import org.itxtech.mirainative.manager.CacheManager
 import org.itxtech.mirainative.manager.EventManager
 import org.itxtech.mirainative.manager.PluginManager
 import org.itxtech.mirainative.message.ChainCodeConverter
 import org.itxtech.mirainative.plugin.FloatingWindowEntry
 import org.itxtech.mirainative.plugin.NativePlugin
+import org.itxtech.mirainative.toNative
 import java.io.File
 import java.math.BigInteger
 import java.nio.charset.Charset
@@ -269,16 +271,18 @@ object MiraiBridge {
 
     fun setGroupAddRequest(pluginId: Int, requestId: String, reqType: Int, type: Int, reason: String) =
         call(pluginId, 0) {
-            MiraiNative.nativeLaunch {
+            MiraiNative.launch {
                 if (reqType == Bridge.REQUEST_GROUP_APPLY) {
                     (CacheManager.getEvent(requestId) as? MemberJoinRequestEvent)?.apply {
                         when (type) {//1通过，2拒绝，3忽略
                             1 -> {
                                 accept()
-                                NativeBridge.eventGroupMemberJoin(
-                                    Bridge.MEMBER_JOIN_PERMITTED,
-                                    EventManager.getTimestamp(), groupId, 0, fromId
-                                )
+                                MiraiNative.nativeLaunch {
+                                    NativeBridge.eventGroupMemberJoin(
+                                        Bridge.MEMBER_JOIN_PERMITTED,
+                                        EventManager.getTimestamp(), groupId, 0, fromId
+                                    )
+                                }
                             }
                             2 -> reject(message = reason)
                             3 -> ignore()
@@ -297,7 +301,7 @@ object MiraiBridge {
         }
 
     fun setFriendAddRequest(pluginId: Int, requestId: String, type: Int, remark: String) = call(pluginId, 0) {
-        MiraiNative.nativeLaunch {
+        MiraiNative.launch {
             (CacheManager.getEvent(requestId) as? NewFriendRequestEvent)?.apply {
                 when (type) {//1通过，2拒绝
                     1 -> accept()
@@ -381,7 +385,7 @@ object MiraiBridge {
 
     fun updateFwe(pluginId: Int, fwe: FloatingWindowEntry) {
         val pk = ByteReadPacket(
-            Bridge.callStringMethod(pluginId, fwe.status.function).decodeBase64Bytes()
+            Bridge.callStringMethod(pluginId, fwe.status.function.toNative()).fromNative().decodeBase64Bytes()
         )
         fwe.data = pk.readString()
         fwe.unit = pk.readString()
@@ -439,14 +443,14 @@ object MiraiBridge {
 }
 
 object NativeLoggerHelper {
-    private const val LOG_DEBUG = 0
-    private const val LOG_INFO = 10
-    private const val LOG_INFO_SUCC = 11
-    private const val LOG_INFO_RECV = 12
-    private const val LOG_INFO_SEND = 13
-    private const val LOG_WARNING = 20
-    private const val LOG_ERROR = 21
-    private const val LOG_FATAL = 22
+    const val LOG_DEBUG = 0
+    const val LOG_INFO = 10
+    const val LOG_INFO_SUCC = 11
+    const val LOG_INFO_RECV = 12
+    const val LOG_INFO_SEND = 13
+    const val LOG_WARNING = 20
+    const val LOG_ERROR = 21
+    const val LOG_FATAL = 22
 
     private fun getLogger() = MiraiNative.logger
 

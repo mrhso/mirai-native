@@ -25,11 +25,12 @@
 package org.itxtech.mirainative.manager
 
 import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.Job
 import kotlinx.serialization.json.Json
 import net.mamoe.mirai.console.command.CommandManager.INSTANCE.register
 import net.mamoe.mirai.console.command.CommandSender
 import net.mamoe.mirai.console.command.CompositeCommand
-import net.mamoe.mirai.console.command.ConsoleCommandOwner
+import net.mamoe.mirai.console.command.PluginCommandOwner
 import net.mamoe.mirai.console.command.sendMessage
 import net.mamoe.mirai.console.util.ConsoleExperimentalAPI
 import org.itxtech.mirainative.Bridge
@@ -37,6 +38,7 @@ import org.itxtech.mirainative.MiraiNative
 import org.itxtech.mirainative.bridge.NativeBridge
 import org.itxtech.mirainative.plugin.NativePlugin
 import org.itxtech.mirainative.plugin.PluginInfo
+import org.itxtech.mirainative.toNative
 import org.itxtech.mirainative.ui.Tray
 import org.itxtech.mirainative.util.NpmHelper
 import java.io.File
@@ -60,9 +62,9 @@ object PluginManager {
         }
     }
 
-    fun unloadPlugins() {
+    fun unloadPlugins(): Job {
         MiraiNative.logger.info("正停用所有插件并调用Exit事件。")
-        MiraiNative.nativeLaunch {
+        return MiraiNative.nativeLaunch {
             plugins.values.forEach {
                 if (it.enabled) {
                     NativeBridge.disablePlugin(it)
@@ -101,16 +103,26 @@ object PluginManager {
         }
         MiraiNative.nativeLaunch {
             val plugin = NativePlugin(file, pluginId.value)
-            val json = File(file.parent + File.separatorChar + file.name.replace(".dll", ".json"))
-            if (json.exists()) {
-                plugin.pluginInfo = Json {
-                    isLenient = true
-                    ignoreUnknownKeys = true
-                    allowSpecialFloatingPointValues = true
-                    useArrayPolymorphism = true
-                }.decodeFromString(PluginInfo.serializer(), json.readText())
-            }
             if (NativeBridge.loadPlugin(plugin) == 0) {
+
+                val json = File(file.parent + File.separatorChar + file.name.replace(".dll", ".json"))
+
+                try {
+                    plugin.pluginInfo = Json {
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                        allowSpecialFloatingPointValues = true
+                        useArrayPolymorphism = true
+                    }.decodeFromString(
+                        PluginInfo.serializer(),
+                        if (json.exists()) json.readText() else NativeBridge.getPluginInfo(plugin)
+                    )
+                } catch (ignored: Throwable) {
+                }
+                if (plugin.pluginInfo == null) {
+                    MiraiNative.logger.warning("No valid plugin info found for ${plugin.file.name}.")
+                }
+
                 plugin.loaded = true
                 plugins[pluginId.getAndIncrement()] = plugin
                 NativeBridge.updateInfo(plugin)
@@ -164,9 +176,11 @@ object PluginManager {
         }
     }
 
+    object TempOwner : PluginCommandOwner(MiraiNative)
+
     @OptIn(ConsoleExperimentalAPI::class)
     object NpmCommand : CompositeCommand(
-        ConsoleCommandOwner, "npm",
+        TempOwner, "npm",
         description = "Mirai Native 插件管理器"
     ) {
         @Description("列出所有 Mirai Native 插件")
@@ -228,7 +242,7 @@ object PluginManager {
             sendMessage(buildString {
                 if (plugins[id]?.verifyMenuFunc(method) == true) {
                     MiraiNative.nativeLaunch {
-                        Bridge.callIntMethod(id, method)
+                        Bridge.callIntMethod(id, method.toNative())
                     }
                     appendLine("已调用 Id $id 的 $method 方法。")
                 } else {

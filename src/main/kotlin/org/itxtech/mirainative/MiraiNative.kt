@@ -27,7 +27,6 @@ package org.itxtech.mirainative
 import kotlinx.coroutines.*
 import net.mamoe.mirai.Bot
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
-import org.itxtech.mirainative.bridge.NativeBridge
 import org.itxtech.mirainative.manager.CacheManager
 import org.itxtech.mirainative.manager.EventManager
 import org.itxtech.mirainative.manager.LibraryManager
@@ -48,7 +47,7 @@ object MiraiNative : KotlinPlugin() {
     val recDataPath: File by lazy { File("data" + File.separatorChar + "record").also { it.mkdirs() } }
 
     @OptIn(ObsoleteCoroutinesApi::class)
-    private val dispatcher = newSingleThreadContext("MiraiNative")
+    private val dispatcher = newSingleThreadContext("MiraiNative") + SupervisorJob()
 
     var botOnline = false
     val bot: Bot by lazy { Bot.botInstances.first() }
@@ -87,12 +86,13 @@ object MiraiNative : KotlinPlugin() {
             logger.warning("如果您正在开发或调试其他环境下的 Mirai Native，请忽略此警告。")
         }
 
+        val nativeLib = getResourceAsStream("CQP.dll")!!
         if (!dll.exists()) {
             logger.error("找不到 ${dll.absolutePath}，写出自带的 CQP.dll。")
             val cqp = FileOutputStream(dll)
-            getResourceAsStream("CQP.dll").copyTo(cqp)
+            nativeLib.copyTo(cqp)
             cqp.close()
-        } else if (getResourceAsStream("CQP.dll").readBytes().checksum() != dll.readBytes().checksum()) {
+        } else if (nativeLib.readBytes().checksum() != dll.readBytes().checksum()) {
             logger.warning("${dll.absolutePath} 与 Mirai Native 内置的 CQP.dll 的校验和不同。")
             logger.warning("如运行时出现问题，请尝试删除 ${dll.absolutePath} 并重启 Mirai。")
         }
@@ -134,9 +134,6 @@ object MiraiNative : KotlinPlugin() {
 
     override fun onEnable() {
         checkNativeLibs()
-
-        NativeBridge.init()
-
         PluginManager.loadPlugins()
 
         nativeLaunch {
@@ -149,13 +146,11 @@ object MiraiNative : KotlinPlugin() {
 
     override fun onDisable() {
         ConfigMan.save()
-        PluginManager.unloadPlugins()
         CacheManager.clear()
-        nativeLaunch {
-            Bridge.shutdown()
-        }
-        dispatcher.cancel()
         runBlocking {
+            PluginManager.unloadPlugins().join()
+            nativeLaunch { Bridge.shutdown() }.join()
+            dispatcher.cancel()
             dispatcher[Job]?.join()
         }
     }
