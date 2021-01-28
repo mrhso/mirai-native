@@ -2,7 +2,7 @@
  *
  * Mirai Native
  *
- * Copyright (C) 2020 iTX Technologies
+ * Copyright (C) 2020-2021 iTX Technologies
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -26,18 +26,26 @@ package org.itxtech.mirainative.manager
 
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.launch
-import net.mamoe.mirai.contact.Member
+import net.mamoe.mirai.contact.AnonymousMember
+import net.mamoe.mirai.contact.NormalMember
 import net.mamoe.mirai.contact.User
 import net.mamoe.mirai.event.events.BotEvent
-import net.mamoe.mirai.getFriendOrNull
-import net.mamoe.mirai.message.TempMessageEvent
-import net.mamoe.mirai.message.data.*
+import net.mamoe.mirai.event.events.GroupMessageEvent
+import net.mamoe.mirai.event.events.GroupTempMessageEvent
+import net.mamoe.mirai.message.data.MessageChain
+import net.mamoe.mirai.message.data.MessageSource
+import net.mamoe.mirai.message.data.MessageSource.Key.recall
+import net.mamoe.mirai.message.data.Voice
+import net.mamoe.mirai.message.data.source
+import net.mamoe.mirai.utils.MiraiExperimentalApi
 import org.itxtech.mirainative.MiraiNative
 
+@OptIn(MiraiExperimentalApi::class)
 object CacheManager {
     private val msgCache = hashMapOf<Int, MessageSource>()
     private val evCache = hashMapOf<Int, BotEvent>()
-    private val senders = hashMapOf<Long, Member>()
+    private val senders = hashMapOf<Long, NormalMember>()
+    private val anonymousMembers = hashMapOf<Long, HashMap<String, AnonymousMember>>()
     private val records = hashMapOf<String, Voice>()
     private val internalId = atomic(0)
 
@@ -57,9 +65,17 @@ object CacheManager {
         return id
     }
 
-    fun cacheTempMessage(message: TempMessageEvent, id: Int = nextId()): Int {
+    fun cacheTempMessage(message: GroupTempMessageEvent, id: Int = nextId()): Int {
         senders[message.sender.id] = message.sender
         return cacheMessage(message.message.source, id, message.message)
+    }
+
+    fun cacheAnonymousMember(ev: GroupMessageEvent) {
+        if (anonymousMembers[ev.group.id] == null) {
+            anonymousMembers[ev.group.id] = hashMapOf()
+        }
+        val sender = ev.sender as AnonymousMember
+        anonymousMembers[ev.group.id]!![sender.anonymousId] = sender
     }
 
     fun recall(id: Int): Boolean {
@@ -76,10 +92,13 @@ object CacheManager {
     fun getRecord(name: String) = records[name.replace(".mnrec", "")]
 
     fun findUser(id: Long): User? {
-        val member = MiraiNative.bot.getFriendOrNull(id) ?: senders[id]
+        var member = MiraiNative.bot.getFriend(id) ?: senders[id]
+        if (member == null) {
+            member = MiraiNative.bot.strangers[id]
+        }
         if (member == null) {
             MiraiNative.bot.groups.forEach {
-                if (it.getOrNull(id) != null) {
+                if (it[id] != null) {
                     return it[id]
                 }
             }
@@ -87,9 +106,12 @@ object CacheManager {
         return member
     }
 
+    fun findAnonymousMember(group: Long, id: String): AnonymousMember? = anonymousMembers[group]?.get(id)
+
     fun clear() {
         msgCache.clear()
         evCache.clear()
         senders.clear()
+        anonymousMembers.clear()
     }
 }

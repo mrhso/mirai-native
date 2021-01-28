@@ -1,12 +1,12 @@
 ﻿#include <jni.h>
-#include <vector>
 #include <string>
 #include <thread>
+#include <map>
+#include <mutex>
+#include <queue>
 #include <Windows.h>
 #include "org_itxtech_mirainative_Bridge.h"
 #include "native.h"
-#include <mutex>
-#include <queue>
 
 using namespace std;
 
@@ -16,6 +16,14 @@ struct native_plugin
 	const char* file;
 	HMODULE dll;
 	bool enabled;
+
+	native_plugin()
+	{
+		id = -1;
+		file = "";
+		dll = nullptr;
+		enabled = false;
+	};
 
 	native_plugin(int i, char* f)
 	{
@@ -55,7 +63,7 @@ const char* delay_mem_free(const char* str)
 
 // Global var
 
-vector<native_plugin> plugins;
+map<int, native_plugin> plugins;
 
 // Strings
 
@@ -81,6 +89,10 @@ string ByteArrayToString(JNIEnv* env, jbyteArray arr)
 
 jbyteArray CharsToByteArray(JNIEnv* env, const char* str)
 {
+	if (str == nullptr)
+	{
+		str = "\0";
+	}
 	auto len = strlen(str);
 	auto arr = env->NewByteArray(len);
 	env->SetByteArrayRegion(arr, 0, len, reinterpret_cast<const jbyte*>(str));
@@ -131,13 +143,19 @@ void detach_java()
 	jvm->DetachCurrentThread();
 }
 
-// Shutdown
+// Utilities
 
 JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_shutdown(JNIEnv* env, jclass clz)
 {
 	env->DeleteGlobalRef(bclz);
 	running = false;
 	mem_thread.join();
+	return 0;
+}
+
+JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_setCurrentDirectory(JNIEnv* env, jclass clz, jbyteArray dir)
+{
+	SetCurrentDirectoryA(ByteArrayToString(env, dir).c_str());
 	return 0;
 }
 
@@ -152,7 +170,7 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_loadNativePlugin(
 	if (dll != nullptr)
 	{
 		plugin.dll = dll;
-		plugins.push_back(plugin);
+		plugins[id] = plugin;
 
 		const auto init = FuncInitialize(GetProcAddress(dll, "Initialize"));
 		if (init)
@@ -232,7 +250,7 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvGroupMessage(
 	if (m)
 	{
 		auto result = m(type, msg_id, grp, acct, ByteArrayToString(env, anon).c_str(),
-			ByteArrayToString(env, msg).c_str(), font);
+		                ByteArrayToString(env, msg).c_str(), font);
 		return result;
 	}
 	return 0;
@@ -279,7 +297,8 @@ JNIEXPORT jint JNICALL Java_org_itxtech_mirainative_Bridge_pEvRequestAddGroup(
 	const auto m = EvRequestAddGroup(GetMethod(env, id, method));
 	if (m)
 	{
-		auto result = m(type, time, grp, acct, ByteArrayToString(env, msg).c_str(), ByteArrayToString(env, flag).c_str());
+		auto result = m(type, time, grp, acct, ByteArrayToString(env, msg).c_str(),
+		                ByteArrayToString(env, flag).c_str());
 		return result;
 	}
 	return 0;
@@ -595,7 +614,7 @@ CQAPI(const char*, CQ_getImage, 8)(int32_t plugin_id, const char* image)
 CQAPI(const char*, CQ_getRecordV2, 12)(int32_t plugin_id, const char* file, const char* format)
 {
 	auto env = attach_java();
-	auto method = env->GetStaticMethodID(bclz, "getRecord","(I[B[B)[B");
+	auto method = env->GetStaticMethodID(bclz, "getRecord", "(I[B[B)[B");
 	auto f = CharsToByteArray(env, file);
 	auto fmt = CharsToByteArray(env, format);
 	auto result = jbyteArray(env->CallStaticObjectMethod(bclz, method, plugin_id, f, fmt));
@@ -708,4 +727,9 @@ CQAPI(int32_t, CQ_sendLike, 12)(int32_t plugin_id, int64_t account)
 CQAPI(int32_t, CQ_setFunctionMark, 8)(int32_t plugin_id, const char* name)
 {
 	return 0;
+}
+
+CQAPI(const char*, CQ_getRecord, 12)(int32_t plugin_id, const char* file, const char* format)
+{
+	return CQ_getRecordV2(plugin_id, file, format);
 }

@@ -2,7 +2,7 @@
  *
  * Mirai Native
  *
- * Copyright (C) 2020 iTX Technologies
+ * Copyright (C) 2020-2021 iTX Technologies
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -28,11 +28,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mamoe.mirai.contact.Contact
 import net.mamoe.mirai.contact.Group
-import net.mamoe.mirai.getGroupOrNull
 import net.mamoe.mirai.message.data.*
-import net.mamoe.mirai.message.uploadImage
-import net.mamoe.mirai.utils.toExternalImage
-import net.mamoe.mirai.utils.upload
+import net.mamoe.mirai.message.data.PokeMessage.Key.ChuoYiChuo
+import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
+import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
+import net.mamoe.mirai.utils.MiraiExperimentalApi
 import org.itxtech.mirainative.MiraiNative
 import org.itxtech.mirainative.manager.CacheManager
 import org.itxtech.mirainative.util.Music
@@ -64,6 +64,7 @@ object ChainCodeConverter {
         }
     }
 
+    @OptIn(MiraiExperimentalApi::class)
     private suspend fun String.toMessageInternal(contact: Contact?): Message {
         if (startsWith("[CQ:") && endsWith("]")) {
             val parts = substring(4, length - 1).split(delimiters = arrayOf(","), limit = 2)
@@ -77,17 +78,18 @@ object ChainCodeConverter {
                     if (args["qq"] == "all") {
                         return AtAll
                     } else {
-                        val group = MiraiNative.bot.getGroupOrNull(contact!!.id)
-                        if (group == null) {
-                            MiraiNative.logger.debug("你群没了：${contact.id}")
-                            return MSG_EMPTY
+                        return if (contact !is Group) {
+                            MiraiNative.logger.debug("不能在私聊中发送 At。")
+                            MSG_EMPTY
+                        } else {
+                            val member = contact.get(args["qq"]!!.toLong())
+                            if (member == null) {
+                                MiraiNative.logger.debug("无法找到群员：${args["qq"]}")
+                                MSG_EMPTY
+                            } else {
+                                At(member)
+                            }
                         }
-                        val member = group.getOrNull(args["qq"]!!.toLong())
-                        if (member == null) {
-                            MiraiNative.logger.debug("你人没了：${args["qq"]}")
-                            return MSG_EMPTY
-                        }
-                        return At(member)
                     }
                 }
                 "face" -> {
@@ -104,12 +106,12 @@ object ChainCodeConverter {
                         } else {
                             val file = MiraiNative.getDataFile("image", args["file"]!!)
                             if (file != null) {
-                                image = contact!!.uploadImage(file)
+                                image = contact!!.uploadImage(file.toExternalResource())
                             }
                         }
                     } else if (args.containsKey("url")) {
                         image = withContext(Dispatchers.IO) {
-                            URL(args["url"]!!).openStream().toExternalImage().upload(contact!!)
+                            URL(args["url"]!!).openStream().toExternalResource().uploadAsImage(contact!!)
                         }
                     }
                     if (image != null) {
@@ -150,26 +152,26 @@ object ChainCodeConverter {
                 }
                 "shake" -> {
                     if (args.size == 0) {
-                        return PokeMessage.Poke
+                        return ChuoYiChuo
                     }
                     PokeMessage.values.forEach {
-                        if (it.type == args["type"]!!.toInt() && it.id == args["id"]!!.toInt()) {
+                        if (it.pokeType == args["type"]!!.toInt() && it.id == args["id"]!!.toInt()) {
                             return it
                         }
                     }
                     return PokeMessage.Poke
                 }
                 "xml" -> {
-                    return XmlMessage(args["data"]!!)
+                    return xmlMessage(args["data"]!!)
                 }
                 "json" -> {
-                    return JsonMessage(args["data"]!!)
+                    return jsonMessage(args["data"]!!)
                 }
                 "app" -> {
                     return LightApp(args["data"]!!)
                 }
                 "rich" -> {
-                    return ServiceMessage(args["id"]!!.toInt(), args["data"]!!)
+                    return SimpleServiceMessage(args["id"]!!.toInt(), args["data"]!!)
                 }
                 "record" -> {
                     var rec: Voice? = null
@@ -177,14 +179,15 @@ object ChainCodeConverter {
                         if (args["file"]!!.endsWith(".mnrec")) {
                             rec = CacheManager.getRecord(args["file"]!!)
                         } else {
-                            val file = MiraiNative.getDataFile("record", args["file"]!!)
-                            if (file != null) {
-                                rec = (contact!! as Group).uploadVoice(file.inputStream())
+                            MiraiNative.getDataFile("record", args["file"]!!)?.use {
+                                rec = (contact!! as Group).uploadVoice(it.toExternalResource())
                             }
                         }
                     } else if (args.containsKey("url")) {
-                        rec = withContext(Dispatchers.IO) {
-                            (contact!! as Group).uploadVoice(URL(args["url"]!!).openStream())
+                        withContext(Dispatchers.IO) {
+                            URL(args["url"]!!).openStream().use {
+                                rec = (contact!! as Group).uploadVoice(it.toExternalResource())
+                            }
                         }
                     }
                     return rec ?: MSG_EMPTY
@@ -234,7 +237,7 @@ object ChainCodeConverter {
                     }
                 }
                 is Voice -> "[CQ:record,file=${it.fileName}.mnrec]"
-                is PokeMessage -> "[CQ:shake,id=${it.id},type=${it.type},name=${it.name}]"
+                is PokeMessage -> "[CQ:shake,id=${it.id},type=${it.pokeType},name=${it.name}]"
                 is FlashImage -> "[CQ:image,file=${it.image.imageId}.mning,type=flash]"
                 else -> ""//error("不支持的消息类型：${it::class.simpleName}")
             }

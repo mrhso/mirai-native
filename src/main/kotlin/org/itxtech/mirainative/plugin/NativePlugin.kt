@@ -2,7 +2,7 @@
  *
  * Mirai Native
  *
- * Copyright (C) 2020 iTX Technologies
+ * Copyright (C) 2020-2021 iTX Technologies
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -51,16 +51,23 @@ data class NativePlugin(val file: File, val id: Int) {
             }
             field = v
         }
-    private val events = hashMapOf<Int, String>()
+    val events = hashMapOf<Int, String>()
     val entries = arrayListOf<FloatingWindowEntry>()
+
+    val reloadable
+        get() = file.name.endsWith(".dev.dll")
+    var tempFile: File? = null
+
+    val detailedIdentifier
+        get() = "\"$identifier\" (${file.name}) (ID: $id)"
 
     private fun registerFws(fws: ArrayList<Status>) {
         fws.forEach {
             val entry = FloatingWindowEntry(it)
             entries.add(entry)
             MiraiNative.nativeLaunch {
-                while (isActive) {
-                    if (enabled && entry.visible && FloatingWindow.isVisible()) {
+                while (isActive && loaded && entry.vaild) {
+                    if (enabled && entry.visible && FloatingWindow.visible) {
                         MiraiBridge.updateFwe(id, entry)
                     }
                     delay(it.period.toLong())
@@ -69,9 +76,7 @@ data class NativePlugin(val file: File, val id: Int) {
         }
     }
 
-    fun getName(): String {
-        return pluginInfo?.name ?: identifier
-    }
+    fun getName() = pluginInfo?.name ?: identifier
 
     fun setInfo(i: String) {
         val parts = i.split(",")
@@ -81,11 +86,8 @@ data class NativePlugin(val file: File, val id: Int) {
         }
     }
 
-    fun getEventOrDefault(key: Int, default: String): String {
-        return events.getOrDefault(key, default)
-    }
+    fun getEventOrDefault(key: Int, default: String) = events.getOrDefault(key, default)
 
-    @JvmOverloads
     fun shouldCallEvent(key: Int, ignoreState: Boolean = false): Boolean {
         if (!enabled && !ignoreState) {
             return false

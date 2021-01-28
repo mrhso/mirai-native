@@ -2,7 +2,7 @@
  *
  * Mirai Native
  *
- * Copyright (C) 2020 iTX Technologies
+ * Copyright (C) 2020-2021 iTX Technologies
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -26,13 +26,12 @@ package org.itxtech.mirainative.manager
 
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import net.mamoe.mirai.console.command.CommandManager.INSTANCE.register
 import net.mamoe.mirai.console.command.CommandSender
 import net.mamoe.mirai.console.command.CompositeCommand
-import net.mamoe.mirai.console.command.PluginCommandOwner
-import net.mamoe.mirai.console.command.sendMessage
-import net.mamoe.mirai.console.util.ConsoleExperimentalAPI
+import net.mamoe.mirai.console.util.ConsoleExperimentalApi
 import org.itxtech.mirainative.Bridge
 import org.itxtech.mirainative.MiraiNative
 import org.itxtech.mirainative.bridge.NativeBridge
@@ -55,7 +54,7 @@ object PluginManager {
             MiraiNative.nativeLaunch {
                 pl.listFiles()?.forEach { file ->
                     if (file.isFile && file.absolutePath.endsWith("dll") && !file.absolutePath.endsWith("CQP.dll")) {
-                        loadPlugin(file)
+                        readPlugin(file)
                     }
                 }
             }
@@ -65,12 +64,11 @@ object PluginManager {
     fun unloadPlugins(): Job {
         MiraiNative.logger.info("正停用所有插件并调用Exit事件。")
         return MiraiNative.nativeLaunch {
-            plugins.values.forEach {
-                if (it.enabled) {
-                    NativeBridge.disablePlugin(it)
-                }
-                NativeBridge.exitPlugin(it)
-                NativeBridge.unloadPlugin(it)
+            val it = plugins.values.iterator()
+            while (it.hasNext()) {
+                val p = it.next()
+                unloadPlugin(p, false)
+                it.remove()
             }
             plugins.clear()
         }
@@ -85,16 +83,16 @@ object PluginManager {
         return null
     }
 
-    fun loadPluginFromFile(f: String): Boolean {
+    fun readPluginFromFile(f: String): Boolean {
         val file = File(pl.absolutePath + File.separatorChar + f)
-        if (file.isFile && file.exists()) {
-            loadPlugin(file)
+        if (f.endsWith(".dll") && file.isFile && file.exists()) {
+            readPlugin(file)
             return true
         }
         return false
     }
 
-    fun loadPlugin(file: File) {
+    fun readPlugin(file: File) {
         plugins.values.forEach {
             if (it.loaded && it.file == file) {
                 MiraiNative.logger.error("DLL ${file.absolutePath} 已被加载，无法重复加载。")
@@ -103,57 +101,89 @@ object PluginManager {
         }
         MiraiNative.nativeLaunch {
             val plugin = NativePlugin(file, pluginId.value)
-            if (NativeBridge.loadPlugin(plugin) == 0) {
+            loadPlugin(plugin)
+            plugins[pluginId.getAndIncrement()] = plugin
+            Tray.update()
+        }
+    }
 
-                val json = File(file.parent + File.separatorChar + file.name.replace(".dll", ".json"))
+    fun loadPlugin(plugin: NativePlugin) {
+        if (plugin.loaded) {
+            return
+        }
+        lateinit var suffix: String
+        val file = if (plugin.reloadable) {
+            suffix = ".tmp"
+            plugin.tempFile = File(plugin.file.absolutePath.replace(".dev.dll", suffix))
+            plugin.file.copyTo(plugin.tempFile!!, true)
+        } else {
+            suffix = ".dll"
+            plugin.file
+        }
+        if (NativeBridge.loadPlugin(plugin, file) == 0) {
+            val json = File(file.parent + File.separatorChar + file.name.replace(suffix, ".json"))
 
-                try {
-                    plugin.pluginInfo = Json {
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                        allowSpecialFloatingPointValues = true
-                        useArrayPolymorphism = true
-                    }.decodeFromString(
-                        PluginInfo.serializer(),
-                        if (json.exists()) json.readText() else NativeBridge.getPluginInfo(plugin)
-                    )
-                } catch (ignored: Throwable) {
-                }
-                if (plugin.pluginInfo == null) {
-                    MiraiNative.logger.warning("No valid plugin info found for ${plugin.file.name}.")
-                }
+            try {
+                plugin.pluginInfo = Json {
+                    isLenient = true
+                    ignoreUnknownKeys = true
+                    allowSpecialFloatingPointValues = true
+                    useArrayPolymorphism = true
+                }.decodeFromString(
+                    PluginInfo.serializer(),
+                    if (json.exists()) json.readText() else NativeBridge.getPluginInfo(plugin)
+                )
+            } catch (ignored: Throwable) {
+            }
+            if (plugin.pluginInfo == null) {
+                MiraiNative.logger.warning("无法找到 ${plugin.file.name} 的插件信息。")
+            }
+            plugin.loaded = true
+            NativeBridge.updateInfo(plugin)
+        }
+    }
 
-                plugin.loaded = true
-                plugins[pluginId.getAndIncrement()] = plugin
-                NativeBridge.updateInfo(plugin)
+    fun unloadPlugin(plugin: NativePlugin, remove: Boolean = true) {
+        with(plugin) {
+            if (loaded) {
+                disablePlugin(this)
+                NativeBridge.exitPlugin(this)
+                NativeBridge.unloadPlugin(this)
+                loaded = false
+                enabled = false
+                started = false
+                entries.forEach { it.vaild = false }
+                entries.clear()
+                events.clear()
+                tempFile?.delete()
+                if (remove) plugins.remove(id)
                 Tray.update()
             }
         }
     }
 
-    fun unloadPlugin(plugin: NativePlugin) {
-        MiraiNative.nativeLaunch {
-            disablePlugin(plugin)
-            NativeBridge.exitPlugin(plugin)
-            if (NativeBridge.unloadPlugin(plugin) == 0) {
-                plugin.loaded = false
-                plugin.enabled = false
+    fun reloadPlugin(plugin: NativePlugin) {
+        if (plugin.loaded) {
+            if (plugin.reloadable) {
+                unloadPlugin(plugin)
+                loadPlugin(plugin)
+                plugins[plugin.id] = plugin
                 Tray.update()
+            } else {
+                MiraiNative.logger.error("插件 ${plugin.detailedIdentifier} 不可重新加载。文件名必须以 \".dev.dll\" 结尾。")
             }
         }
     }
 
     fun enablePlugin(plugin: NativePlugin): Boolean {
         if (MiraiNative.botOnline && !plugin.enabled) {
-            MiraiNative.nativeLaunch {
-                if (!plugin.started) {
-                    NativeBridge.startPlugin(plugin)
-                    plugin.started = true
-                }
-                NativeBridge.enablePlugin(plugin)
-                plugin.enabled = true
-                Tray.update()
+            if (!plugin.started) {
+                NativeBridge.startPlugin(plugin)
+                plugin.started = true
             }
+            NativeBridge.enablePlugin(plugin)
+            plugin.enabled = true
+            Tray.update()
             return true
         }
         return false
@@ -161,29 +191,27 @@ object PluginManager {
 
     fun disablePlugin(plugin: NativePlugin): Boolean {
         if (plugin.enabled) {
-            MiraiNative.nativeLaunch {
-                NativeBridge.disablePlugin(plugin)
-                plugin.enabled = false
-                Tray.update()
-            }
+            NativeBridge.disablePlugin(plugin)
+            plugin.enabled = false
+            Tray.update()
             return true
         }
         return false
     }
 
     fun enablePlugins() {
-        plugins.values.forEach {
-            if (it.autoEnable) {
-                enablePlugin(it)
+        MiraiNative.nativeLaunch {
+            plugins.values.forEach {
+                if (it.autoEnable) {
+                    enablePlugin(it)
+                }
             }
         }
     }
 
-    object TempOwner : PluginCommandOwner(MiraiNative)
-
-    @OptIn(ConsoleExperimentalAPI::class)
+    @OptIn(ConsoleExperimentalApi::class)
     object NpmCommand : CompositeCommand(
-        TempOwner, "npm",
+        MiraiNative, "npm",
         description = "Mirai Native 插件管理器"
     ) {
         @Description("列出所有 Mirai Native 插件")
@@ -216,7 +244,9 @@ object PluginManager {
                 } else {
                     if (plugins.containsKey(id)) {
                         val p = plugins[id]!!
-                        enablePlugin(p)
+                        MiraiNative.nativeLaunch {
+                            enablePlugin(p)
+                        }
                         appendLine("插件 ${p.identifier} 已启用。")
                     } else {
                         appendLine("Id $id 不存在。")
@@ -231,7 +261,9 @@ object PluginManager {
             sendMessage(buildString {
                 if (plugins.containsKey(id)) {
                     val p = plugins[id]!!
-                    disablePlugin(p)
+                    MiraiNative.nativeLaunch {
+                        disablePlugin(p)
+                    }
                     appendLine("插件 ${p.identifier} 已禁用。")
                 } else {
                     appendLine("Id $id 不存在。")
@@ -244,7 +276,7 @@ object PluginManager {
         suspend fun CommandSender.menu(@Name("插件Id") id: Int, @Name("方法名") method: String) {
             sendMessage(buildString {
                 if (plugins[id]?.verifyMenuFunc(method) == true) {
-                    MiraiNative.nativeLaunch {
+                    MiraiNative.launch(MiraiNative.menuDispatcher) {
                         Bridge.callIntMethod(id, method.toNative())
                     }
                     appendLine("已调用 Id $id 的 $method 方法。")
@@ -270,7 +302,7 @@ object PluginManager {
         @SubCommand
         suspend fun CommandSender.load(@Name("DLL文件名") file: String) {
             sendMessage(buildString {
-                if (!loadPluginFromFile(file)) {
+                if (!readPluginFromFile(file)) {
                     appendLine("文件 $file 不存在。")
                 }
             })
@@ -281,7 +313,23 @@ object PluginManager {
         suspend fun CommandSender.unload(@Name("插件Id") id: Int) {
             sendMessage(buildString {
                 if (plugins.containsKey(id)) {
-                    unloadPlugin(plugins[id]!!)
+                    MiraiNative.nativeLaunch {
+                        unloadPlugin(plugins[id]!!)
+                    }
+                } else {
+                    appendLine("Id $id 不存在。")
+                }
+            })
+        }
+
+        @Description("重新载入指定 Mirai Native 插件")
+        @SubCommand
+        suspend fun CommandSender.reload(@Name("插件Id") id: Int) {
+            sendMessage(buildString {
+                if (plugins.containsKey(id)) {
+                    MiraiNative.nativeLaunch {
+                        reloadPlugin(plugins[id]!!)
+                    }
                 } else {
                     appendLine("Id $id 不存在。")
                 }

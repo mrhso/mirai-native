@@ -6,26 +6,45 @@ Mirai Native 支持所有`stdcall`方式导出方法的`DLL`与 [mirai](https://
 
 与**大部分**`酷Q`插件兼容，**不支持**`CPK`和解包的`DLL`，需获取`DLL`和`JSON`原文件，`JSON`文件**不支持**注释。
 
+## `Mirai Native` 仅支持 `Windows 32位 JRE`
 ## [欢迎参与建设`Mirai Native`插件中心](https://github.com/iTXTech/mirai-native/issues/50)
 
-## [开发文档](https://github.com/iTXTech/mirai-native/wiki)
+## [Wiki - 开发者和用户必读](https://github.com/iTXTech/mirai-native/wiki)
 
-## 关于托盘菜单
+## [下载 `Mirai Native`](https://github.com/iTXTech/mirai-native/releases)
 
-* 右键流泪猫猫头打开菜单
-* 插画由作者女朋友提供
+## 使用 [Mirai Console Loader](https://github.com/iTXTech/mirai-console-loader) 安装`Mirai Native`
 
-## Mirai Native 插件管理器 `npm`
+* `MCL` 支持自动更新插件，支持设置插件更新频道等功能
 
-1. 在 `mirai console` 中键入 `npm` 获得帮助
-1. `npm` (`Native Plugin Manager`) 可`列出插件`、`启用或停用插件`以及`执行指定方法`（比如调用`menu`）
+`.\mcl --update-package org.itxtech:mirai-native --channel stable --type plugin`
 
-`npm [list|enable|disable|menu|info|load|unload] (插件 Id / 路径) (方法名)`
+## `Mirai Native Tray`
+
+* 右键`流泪猫猫头`打开 `Mirai Native` 托盘菜单。
+* 左键`流泪猫猫头`显示悬浮窗。
+* 插画由作者女朋友提供，**版权所有**。
+
+## `mirai Native Plugin Manager`
+
+```
+> npm
+Mirai Native 插件管理器
+
+/disable <插件Id>   停用指定 Mirai Native 插件
+/enable <插件Id>   启用指定 Mirai Native 插件
+/info <插件Id>   查看指定 Mirai Native 插件的详细信息
+/list    列出所有 Mirai Native 插件
+/load <DLL文件名>   加载指定DLL文件
+/menu <插件Id> <方法名>   调用指定 Mirai Native 插件的菜单方法
+/reload <插件Id>   重新载入指定 Mirai Native 插件
+/unload <插件Id>   卸载指定 Mirai Native 插件
+```
 
 
-## 开源协议
+## 开源许可证
 
-    Copyright (C) 2020 iTX Technologies
+    Copyright (C) 2020-2021 iTX Technologies
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as

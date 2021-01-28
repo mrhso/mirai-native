@@ -2,7 +2,7 @@
  *
  * Mirai Native
  *
- * Copyright (C) 2020 iTX Technologies
+ * Copyright (C) 2020-2021 iTX Technologies
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -40,11 +40,14 @@ object FloatingWindow {
     private var window: JFrame? = null
     private var text: JTextArea? = null
 
+    val visible: Boolean
+        get() = window?.isVisible ?: false
+
     fun create() {
         try {
             val panel = JPanel()
 
-            window = JFrame("悬浮窗").apply {
+            window = JFrame("Mirai Native 悬浮窗").apply {
                 setSize(250, 150)
                 isResizable = false
                 isAlwaysOnTop = true
@@ -112,6 +115,4 @@ object FloatingWindow {
             window!!.isVisible = !window!!.isVisible
         }
     }
-
-    fun isVisible() = window?.isVisible ?: false
 }

@@ -2,7 +2,7 @@
  *
  * Mirai Native
  *
- * Copyright (C) 2020 iTX Technologies
+ * Copyright (C) 2020-2021 iTX Technologies
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -47,7 +47,7 @@ object ConfigMan {
     }
 
     fun init() {
-        if (config.fwState && !FloatingWindow.isVisible()) {
+        if (config.fwState && !FloatingWindow.visible) {
             FloatingWindow.toggle()
         }
         config.plugins.forEach { e ->
@@ -66,7 +66,7 @@ object ConfigMan {
     }
 
     fun save() {
-        config.fwState = FloatingWindow.isVisible()
+        config.fwState = FloatingWindow.visible
         config.plugins = ArrayList()
         PluginManager.plugins.values.forEach { p ->
             val entry = PluginEntry()
@@ -87,6 +87,7 @@ object ConfigMan {
 
 @Serializable
 data class Configuration(
+    var verboseNativeApiLog: Boolean = false,
     var fwState: Boolean = false,
     var plugins: ArrayList<PluginEntry> = ArrayList()
 )

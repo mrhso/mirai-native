@@ -2,7 +2,7 @@
  *
  * Mirai Native
  *
- * Copyright (C) 2020 iTX Technologies
+ * Copyright (C) 2020-2021 iTX Technologies
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -24,30 +24,31 @@
 
 package org.itxtech.mirainative.manager
 
+import net.mamoe.mirai.contact.AnonymousMember
 import net.mamoe.mirai.contact.MemberPermission
 import net.mamoe.mirai.event.events.*
-import net.mamoe.mirai.event.subscribeAlways
-import net.mamoe.mirai.message.FriendMessageEvent
-import net.mamoe.mirai.message.GroupMessageEvent
-import net.mamoe.mirai.message.TempMessageEvent
+import net.mamoe.mirai.event.globalEventChannel
 import net.mamoe.mirai.message.data.source
-import net.mamoe.mirai.utils.currentTimeSeconds
+import net.mamoe.mirai.utils.MiraiExperimentalApi
 import org.itxtech.mirainative.Bridge
 import org.itxtech.mirainative.MiraiNative
+import org.itxtech.mirainative.MiraiNative.launchEvent
+import org.itxtech.mirainative.MiraiNative.setBotOnline
 import org.itxtech.mirainative.bridge.NativeBridge
 import org.itxtech.mirainative.message.ChainCodeConverter
 import org.itxtech.mirainative.message.ChainCodeConverter.escape
 
 object EventManager {
+    @OptIn(MiraiExperimentalApi::class)
     fun registerEvents() {
-        with(MiraiNative) {
+        with(MiraiNative.globalEventChannel()) {
             subscribeAlways<BotOnlineEvent> {
                 setBotOnline()
             }
 
             // 消息事件
             subscribeAlways<FriendMessageEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventPrivateMessage(
                         Bridge.PRI_MSG_SUBTYPE_FRIEND,
                         CacheManager.cacheMessage(message.source, chain = message),
@@ -58,20 +59,23 @@ object EventManager {
                 }
             }
             subscribeAlways<GroupMessageEvent> {
-                nativeLaunch {
+                if (sender is AnonymousMember) {
+                    CacheManager.cacheAnonymousMember(this)
+                }
+                launchEvent {
                     NativeBridge.eventGroupMessage(
                         1,
                         CacheManager.cacheMessage(message.source, chain = message),
                         group.id,
                         sender.id,
-                        "",
+                        if (sender is AnonymousMember) (sender as AnonymousMember).anonymousId else "",//可能不兼容某些插件
                         ChainCodeConverter.chainToCode(message),
                         0
                     )
                 }
             }
-            subscribeAlways<TempMessageEvent> { msg ->
-                nativeLaunch {
+            subscribeAlways<GroupTempMessageEvent> { msg ->
+                launchEvent {
                     NativeBridge.eventPrivateMessage(
                         Bridge.PRI_MSG_SUBTYPE_GROUP,
                         CacheManager.cacheTempMessage(msg),
@@ -81,10 +85,21 @@ object EventManager {
                     )
                 }
             }
+            subscribeAlways<StrangerMessageEvent> {
+                launchEvent {
+                    NativeBridge.eventPrivateMessage(
+                        Bridge.PRI_MSG_SUBTYPE_ONLINE_STATE,
+                        CacheManager.cacheMessage(message.source, chain = message),
+                        sender.id,
+                        ChainCodeConverter.chainToCode(message),
+                        0
+                    )
+                }
+            }
 
             // 权限事件
             subscribeAlways<MemberPermissionChangeEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupAdmin(
                         if (new == MemberPermission.MEMBER) Bridge.PERM_SUBTYPE_CANCEL_ADMIN else Bridge.PERM_SUBTYPE_SET_ADMIN,
                         getTimestamp(), group.id, member.id
@@ -92,7 +107,7 @@ object EventManager {
                 }
             }
             subscribeAlways<BotGroupPermissionChangeEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupAdmin(
                         if (new == MemberPermission.MEMBER) Bridge.PERM_SUBTYPE_CANCEL_ADMIN else Bridge.PERM_SUBTYPE_SET_ADMIN,
                         getTimestamp(), group.id, bot.id
@@ -102,15 +117,15 @@ object EventManager {
 
             // 加群事件
             subscribeAlways<MemberJoinEvent> { ev ->
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupMemberJoin(
                         if (ev is MemberJoinEvent.Invite) Bridge.MEMBER_JOIN_PERMITTED else Bridge.MEMBER_JOIN_INVITED_BY_ADMIN,
-                        getTimestamp(), group.id, 0, member.id
+                        getTimestamp(), group.id, if (ev is MemberJoinEvent.Invite) ev.invitor.id else 0, member.id
                     )
                 }
             }
             subscribeAlways<MemberJoinRequestEvent> { ev ->
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventRequestAddGroup(
                         Bridge.REQUEST_GROUP_APPLY,
                         getTimestamp(),
@@ -122,53 +137,46 @@ object EventManager {
                 }
             }
             subscribeAlways<BotInvitedJoinGroupRequestEvent> { ev ->
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventRequestAddGroup(
                         Bridge.REQUEST_GROUP_INVITED,
                         getTimestamp(), groupId, invitorId, "", CacheManager.cacheEvent(ev)
                     )
                 }
             }
-            subscribeAlways<BotJoinGroupEvent.Invite> { ev ->
-                NativeBridge.eventGroupMemberJoin(
-                    Bridge.MEMBER_JOIN_INVITED_BY_ADMIN,
-                    getTimestamp(),
-                    group.id,
-                    ev.invitor.id,
-                    bot.id
-                )
-            }
-            subscribeAlways<BotJoinGroupEvent.Active> {
-                NativeBridge.eventGroupMemberJoin(
-                    Bridge.MEMBER_JOIN_INVITED_BY_ADMIN,
-                    getTimestamp(),
-                    group.id,
-                    0,
-                    bot.id
-                )
+            subscribeAlways<BotJoinGroupEvent> {
+                launchEvent {
+                    NativeBridge.eventGroupMemberJoin(
+                        Bridge.MEMBER_JOIN_INVITED_BY_ADMIN,
+                        getTimestamp(),
+                        group.id,
+                        if (this@subscribeAlways is BotJoinGroupEvent.Invite) invitor.id else 0,
+                        bot.id
+                    )
+                }
             }
 
             //加好友事件
             subscribeAlways<NewFriendRequestEvent> { ev ->
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventRequestAddFriend(
-                            1,
-                            getTimestamp(),
-                            fromId,
-                            message.escape(false),
-                            CacheManager.cacheEvent(ev)
+                        1,
+                        getTimestamp(),
+                        fromId,
+                        message.escape(false),
+                        CacheManager.cacheEvent(ev)
                     )
                 }
             }
             subscribeAlways<FriendAddEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventFriendAdd(1, getTimestamp(), friend.id)
                 }
             }
 
             // 退群事件
             subscribeAlways<MemberLeaveEvent.Kick> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupMemberLeave(
                         Bridge.MEMBER_LEAVE_KICK,
                         getTimestamp(), group.id, operator?.id ?: bot.id, member.id
@@ -176,7 +184,7 @@ object EventManager {
                 }
             }
             subscribeAlways<MemberLeaveEvent.Quit> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupMemberLeave(
                         Bridge.MEMBER_LEAVE_QUIT,
                         getTimestamp(), group.id, 0, member.id
@@ -184,25 +192,25 @@ object EventManager {
                 }
             }
             subscribeAlways<BotLeaveEvent.Active> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupMemberLeave(
                         Bridge.MEMBER_LEAVE_QUIT,
                         getTimestamp(), group.id, 0, bot.id
                     )
                 }
             }
-            subscribeAlways<BotLeaveEvent.Kick> { ev ->
-                nativeLaunch {
+            subscribeAlways<BotLeaveEvent.Kick> {
+                launchEvent {
                     NativeBridge.eventGroupMemberLeave(
                         Bridge.MEMBER_LEAVE_KICK,
-                        getTimestamp(), group.id, ev.operator.id, bot.id
+                        getTimestamp(), group.id, operator.id, bot.id
                     )
                 }
             }
 
             // 禁言事件
             subscribeAlways<MemberMuteEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupBan(
                         Bridge.GROUP_MUTE,
                         getTimestamp(),
@@ -214,7 +222,7 @@ object EventManager {
                 }
             }
             subscribeAlways<MemberUnmuteEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupBan(
                         Bridge.GROUP_UNMUTE,
                         getTimestamp(),
@@ -226,7 +234,7 @@ object EventManager {
                 }
             }
             subscribeAlways<BotMuteEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupBan(
                         Bridge.GROUP_MUTE,
                         getTimestamp(),
@@ -238,7 +246,7 @@ object EventManager {
                 }
             }
             subscribeAlways<BotUnmuteEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupBan(
                         Bridge.GROUP_UNMUTE,
                         getTimestamp(),
@@ -250,7 +258,7 @@ object EventManager {
                 }
             }
             subscribeAlways<GroupMuteAllEvent> {
-                nativeLaunch {
+                launchEvent {
                     NativeBridge.eventGroupBan(
                         if (new) Bridge.GROUP_MUTE else Bridge.GROUP_UNMUTE,
                         getTimestamp(),
@@ -264,5 +272,5 @@ object EventManager {
         }
     }
 
-    fun getTimestamp() = currentTimeSeconds.toInt()
+    fun getTimestamp() = System.currentTimeMillis().toInt()
 }
